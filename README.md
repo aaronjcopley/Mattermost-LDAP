@@ -1,186 +1,173 @@
-Mattermost-LDAP Module
-======================
+Mattermost-LDAP Puppet Module
+=============================
 
-This module provides an external LDAP authentication in Mattermost for the Team Edition (free).
+This is a puppet module to manage configuration and installation of Mattermost-LDAP.
 
 ## Overview
 
-Currently, LDAP authentication in Mattermost is not featured in the Team Edition (only in the Enterprise Edition). Thus, the only way to get LDAP authentication in Mattermost is to install Gitlab and use its Single Sign On (SSO) feature. Gitlab allows LDAP authentication and transmits user data to Mattermost. So, anyone who wishes to use LDAP with Mattermost must run Gitlab, even if he does not use it, for the SSO feature. 
+Mattermost-LDAP is a module which provides an external LDAP authentication in Mattermost for the Team Edition. Actually, Mattermost and LDAP are mainly used by companies which should manage their servers, services and configurations with automated processes. Many companies use Puppet, an open-source software configuration management tool, to automated their configuration deployement.
 
-However, although Gitlab is a nice software, it is resources-consuming and a bit complicated to manage if you just want the SSO feature. That's the reason why, this module provides an oauth server to only reproduce the Gitlab SSO feature and allows a simple and secure LDAP authentication to Mattermost.
-
-The Mattermost-LDAP project uses the Gitlab authentication feature from Mattermost and substitute Gitlab to LDAP interaction. The main advantage of this module is to provide a light and easy to use LDAP connector for Mattermost not to need Gitlab.
+In this way, Mattermost-LDAP project provides a Puppet module to easily manage and configure the oauth serveur and the LDAP for Mattermost.   
 
 ## Module Description
 
-This module provides an Oauth2 server designed for php, a LDAP connector for PHP and some files for automatic configuration. Once installed and configured with Mattermost, the module allows LDAP authentication by replacing Gitlab SSO. This module allows many configuration settings to try to comply with your settings and configuration. Mattermost-LDAP can be used with MySQL or PostgreSQL database on many operating systems. See Limitation section for more information. 
+This module installs and configures Mattermost-LDAP, to provide the LDAP support on Mattermost. For more information about Mattermost-LDAP please refer to : https://github.com/Crivaledaz/Mattermost-LDAP
+
+The use of this puppet module substitute to the standard installation and configuration steps describe on the Mattermost-LDAP project page. See below to install and configure Mattermost-LDAP with puppet.
+
+The Puppet Mattermost-LDAP module installs the oauth server and associated files from a release archive provided in this repository, create and configure a database for the oauth server depending on your database server (PostgreSQL or MySQL), and configures the oauth server to interact with LDAP according to settings you provide.
+
 
 ## Setup 
 ### Requirements
 This module requires the following : 
 
-* PHP (minimum 5.3.9)
-* php-ldap
-* php-pdo 
-* php-pgsql or php-mysql
-* httpd
-* postgresql or mariadb (mysql)
-* postgresql-server or mariadb-server
+* Puppet (3.8.7 min)
+* puppet/archive
+* puppetlabs/stdlib  
 * git
 
-Obviously, you must have a Mattermost Server installed and be administrator on it, and a LDAP server configured.
+To know the dependencies necessary for Mattermost-LDAP (which will be installed with this puppet module), please refer to : https://github.com/Crivaledaz/Mattermost-LDAP
 
 ### Pre-install
+* Install Puppet (Centos 7, RHEL 7 and Fedora) :
 
-Install required packages :
-
-* For Centos 7, RHEL 7 and Fedora :
 ```
-#For PostgreSQL
-sudo yum -y --nogpgcheck install httpd php postgresql-server postgresql php-ldap php-pdo php-pgsql git 
+# On Puppet Client
+sudo yum -y --nogpgcheck install puppet
+echo "server=SERVER_NAME" >> /etc/puppet/puppet.conf 
 
-#For MySQL
-sudo yum -y --nogpgcheck install httpd php mariadb-server mariadb php-ldap php-pdo php-mysql git
-```
-* For Debian, ubuntu, Mint :
-```
-#For PostgreSQL
-sudo apt-get -y install httpd php postgresql-server postgresql php-ldap php-pdo php-pgsql git 
+# On Puppet Master :
+yum install -y --nogpgcheck puppet puppet-server
+systemctl start puppetmaster
 
-#For MySQL
-sudo apt-get -y install httpd php mariadb-server mariadb php-ldap php-pdo php-mysql git
-```
-Setup your SQL server with the following command :
-```
-#For PostgreSQL (create a new database cluster)
-sudo postgresql-setup initdb
+# On Puppet Client
+puppet agent -t
 
-#For MySQL (optional configuration for a secure MySQL server)
-sudo mysql_secure_installation
-```
-By default, PostgreSQL does not allow client authentication on the server or a database. So we need to enable it by editing pg_hba.conf file (in /var/lib/pgsql). Open this file and replace 'ident' by 'md5' on the first three lines (local, host 127.0.0.1 and host ::1/128). It's recommended to backup the original file before editing it.
+# On Puppet Master
+puppet cert sign CLIENT_NAME
 
-Then, start and enable service for Apache and Database (for all distribution using systemd):
-```
-#For PostgreSQL
-sudo systemctl start httpd
-sudo systemctl start postgresql
-sudo systemctl enable httpd
-sudo systemctl enable postgresql
-
-
-#For MySQL
-sudo systemctl start httpd
-sudo systemctl start mariadb
-sudo systemctl enable httpd
-sudo systemctl enable mariadb
 ```
 
-Your system is ready to install and run Mattermost-LDAP module.
+* Install required Puppet modules :
 
-
-## Install
-Clone (or download and extract) this repository in your /var/www/html (or your httpd root directory) :
 ```
-cd ~
+# On Puppet Master
+puppet module install puppetlabs-stdlib --version 4.17.0
+puppet module install puppet-archive --version 1.3.0 
+	
+```
+
+Your system is ready to use Puppet module Mattermost-LDAP.
+
+
+## Beginning with Mattermost-LDAP Puppet
+
+Clone (or download and extract) this repository :
+```
 git clone https://github.com/crivaledaz/Mattermost-LDAP.git
-cd Mattermost-LDAP
-cp -r oauth/ /var/www/html/
 ```
 
-You need to create a database for the oauth server. For this purpose, you can use the script "init_postgres.sh" or "init_mysql.sh". These scripts try to configure your database automatically, by creating a new user and a new database associated for the oauth server. Scripts also create all tables necessary for the module. If script failed, please report here, and try to configure manually your database by adapting command in scripts. Before running the script you can change the default settings by editing the config_init.sh file and modifying configuration variables. For postgresql, you can copy and paste following lines :
+Move mattermostldap directory from the Puppet directory to /etc/puppet/modules on your Puppet Master, in order to install add this module in Puppet. Make a tar.gz archive with the oauth directory and it is recommended to put this archive on a http server. Thus, the archive will be reachable from a url.
+
+If you have already a Mattermost server running, and a suitable database configured for the oauth server, this is the minimum you need to get Mattermost-LDAP working:
+
 ```
-nano config_init.sh
-./init_postgres.sh
+class { 'mattermostldap':
+	  	project_url  => 'http://myserver.com/project.tar.gz',
+	  	base_url   => 'http://mattermost.company.org',
+	  	install_path => '/var/www/html',
+	  	ldap_base    => 'o=Company',
+	  	ldap_uri   => 'ldap://company.org',
+	  	ldap_port    => 389,
+	  	ldap_attribute   => 'uid',
+	  	db_user    => 'oauth',
+	  	db_pass    => 'oauth_secure-pass',
+	  	db_name    => 'oauth_db',
+	  	db_host    => 'localhost',
+	  	db_port    => 5432,
+	  	db_type    => 'pgsql',
+	  	client_secret => "a7da08dc26fa84bf7254563fbd54d33ca22dc434844fa0c57161366852e82bab",
+        client_id => "a40e2e4aae54e8eb99b8fc7c0ea42702a6c66ad812d78a82cd9109e40b86c6d9",
+        $timezone   = 'Europe/Paris'
+	}
 ```
 
-This script will automatically create and add a new client in the oauth server, returning a client id and a client secret. You need to keep these two token to configure Mattermost. Please be sure the client secret remained secret. The redirect url in the script must comply with the hostname of your Mattermost server, else Mattermost could not get data from the Oauth server.
+This will download project.tar.gz from your server, and extract the archive in /var/www/html. After running, this module ensure that PHP, php-pdo, php-ldap, php-pgsql is installed and httpd is installed and running. The oauth database will be configured and an oauth client, for Mattermost, will be created with id and secret provide. Moreover, Oauth server will be configure to interact with the LDAP and the oauth database.  
 
+Below, there is an example of Mattermost-LDAP Puppet module using Mattermost and PostgreSQL puppet module to install and configure all running on the same server (requires puppetlabs/postgresql and liger1978/mattermost):
 
-## Configuration
-
-Configuration files are provided with examples and default values. Each config file has an ".example" extension, so you need to copy and to rename them without this extension. You can find a detailed description of each parameters available below.
-
-* Init script configuration :
-#### oauth_user
-Oauth user in the database. This user must have right on the oauth database to store oauth tokens. By default : oauth	
-#### oauth_pass
-Oauth user password in the database. By default, oauth_secure-pass
-#### ip
-Hostname or IP address of the database. By default : 127.0.0.1 		
-#### port
-The port to connect to the database. By default : 5432 (postgres) 		
-#### oauth_db_name
-Database name for oauth server. By default	: oauth_db	
-#### client_id	
-The application ID shared with mattermost. This ID should be a random token. You can use openssl to generate this token (openssl rand -hex 32). By default, this variable contain the openssl command, which use the openssl package. The token will be printed at the end of the script. 
-#### client_secret
-The application secret shared with mattermost. This secret should be a random token. You can use openssl to generate this token (openssl rand -hex 32). By default, this variable contain the openssl command, which use the openssl package. The token will be printed at the end of the script. Secret must be different of the client ID.
-#### redirect_uri
-The callback address where oauth will send tokens to Mattermost. Normally it should be http://mattermost.company.com/signup/gitlab/complete
-#### grant_types
-The type of authentification use by Mattermost. It should be "authorization_code".
-#### scope
-The scope of authentification use by Mattermost. It should be "api".
-#### user_id
-The username of the user who create the Mattermost client in Oauth. This field has no impact, and could be used as a commentary field. By default this field is empty.
-
-* Mattermost :
-Active Gitlab authentication in system console > Gitlab (or config.json on server) and fill application id and secret with the two token got during install section. For the next fields use this :
 ```
-User API Endpoint : http://HOSTNAME/oauth/resource.php
-Auth Endpoint: http://HOSTNAME/oauth/authorize.php
-Token Endpoint: http://HOSTNAME/oauth/token.php
+########################---Config Mattermost---########################### 
+	class { 'postgresql::server':
+	  ipv4acls => ['host all all 127.0.0.1/32 md5'],
+	}
+	postgresql::server::db { 'mattermost_db':
+	   user     => 'mattermost',
+	   password => postgresql_password('mattermost', 'mattermost_secure-pass'),
+	}
+	postgresql::server::database_grant { 'mattermost_db':
+	  privilege => 'ALL',
+	  db        => 'mattermost_db',
+	  role      => 'mattermost',
+	} ->
+	class { 'mattermost':
+	  version  => '4.0.2',
+	  override_options => {
+	  	'ServiceSettings' => {
+        	'SiteURL' => "http://mattermost.company.com:8065",
+        },
+	    'SqlSettings' => {
+	      'DriverName' => 'postgres',
+	      'DataSource' => "postgres://mattermost:mattermost_secure-pass@127.0.0.1:5432/mattermost_db?sslmode=disable&connect_timeout=10",
+	    },
+	    'GitLabSettings' => {
+        'Enable' => true,
+        'Secret' => "a7da08dc26fa84bf7254563fbd54d33ca22dc434844fa0c57161366852e82bab",
+        'Id' => "a40e2e4aae54e8eb99b8fc7c0ea42702a6c66ad812d78a82cd9109e40b86c6d9",
+        'Scope' => "api",
+        'AuthEndpoint' => "http://oauth.company.com/oauth/authorize.php",
+        'TokenEndpoint' => "http://oauth.company.com/oauth/token.php",
+        'UserApiEndpoint' => "http://oauth.company.com/oauth/resource.php",
+    	},
+	  },
+	}
+
+	########################---Config de Oauth---########################### 
+	
+	postgresql::server::db { 'oauth_db':
+	    user     => 'oauth',
+	    password => postgresql_password('oauth', 'oauth_secure-pass'),
+	}
+	postgresql::server::database_grant { 'oauth_db':
+	  	privilege => 'ALL',
+	  	db        => 'oauth_db',
+	  	role      => 'oauth',
+	}
+
+	class { 'mattermostldap':
+	  	project_url  => 'http://myserver.com/project.tar.gz',
+	  	base_url   => 'http://mattermost.company.com:8065',
+	  	install_path => '/var/www/html',
+	  	ldap_base    => 'o=Company',
+	  	ldap_uri   => 'ldap://company.com',
+	  	ldap_port    => 389,
+	  	ldap_attribute   => 'uid',
+	  	db_user    => 'oauth',
+	  	db_pass    => 'oauth_secure-pass',
+	  	db_name    => 'oauth_db',
+	  	db_host    => 'localhost',
+	  	db_port    => 5432,
+	  	db_type    => 'pgsql',
+	  	client_secret => "a7da08dc26fa84bf7254563fbd54d33ca22dc434844fa0c57161366852e82bab",
+        client_id => "a40e2e4aae54e8eb99b8fc7c0ea42702a6c66ad812d78a82cd9109e40b86c6d9",
+        $timezone   = 'Europe/Paris'
+	}
 ```
-Change HOSTNAME by hostname or ip of the server where you have installed Mattermost-LDAP module.
+With the above code, you should be able to access the Mattermost application at http://mattermost.company.com:8065 (with your company address) and sign in with your LDAP credentials using the Gitlab button.
 
-In Mattermost 4.9, these fields are disable  in admin panel, so you need to edit directly the configuration file config.json. 
+Please refer to ligger1978/mattermost and puppetlabs/postgresql modules in puppet forge for more information about use of these modules. 
 
-* Database credentials
-Edit oauth/config_db.php and adapt, with your settings, to set up database in PHP.
-
-#### $host
-Hostname or IP address of the database. (ex : localhost)
-#### $port
-The port of your database to connect. (ex : 5432 for postgres)
-#### $name
-Database name for oauth server. If you use init script make sure to use the same database name. (ex : oauth_db) 
-#### $type
-Database type to adapt PDO to your database server. Should be mysql or pgsql.
-#### $username
-Oauth user in the database. This user must have right on the oauth database to store oauth tokens. If you use init script make sure to use the same database user. (ex : oauth)
-#### $password
-Oauth user password in the database. If you use init script make sure to use the same database user. (ex : oauth_secure-pass)
-
-* LDAP config
-Edit oauth/LDAP/config_ldap.php : 
-1. Provide your ldap address, port and version.
-2. Change the base directory name ($base) and the filter ($filter) to comply with your LDAP configuration.
-3. Change the user ID attribute ($ldap_attribute) to comply with your LDAP configuration (uid, sAMAccountName, email, cn ..).
-4. If necessary, you can provide a LDAP account to allow search in LDAP (only restrictive LDAP).  
-
-#### $hostname
-Your LDAP hostname or LDAP IP, to connect to the LDAP server.
-#### $port
-Your LDAP port, to connect to the LDAP server. By default : 389.
-#### $ldap_version
-Your LDAP version, or protocol version used by your server. By default : 3. This parameter avoid LDAP blind error with LDAP 3 (issue #14)
-#### $search_attribute
-The attribute used to identify user on your LDAP. Should be uid, email, cn or sAMAccountName.
-#### $base
-The base directory name of your LDAP server. (ex : ou=People,o=Company)
-#### $filter
-Additional filters to search in LDAP (used to get user informations). (ex : objectClass=person)
-#### $bind_dn
-The LDAP Directory Name of an service account to allow LDAP search. This ption is required if your LDAP is restrictive, else put an empty string (""). (ex : cn=mattermost_ldap,dc=Example,dc=com)
-#### $bind_pass
-The password associated to the service account to allow LDAP search. This ption is required if your LDAP you provide an bind user, else put an empty string ("").
-
-
-
-To try your configuration you can use ldap.php available at the root of this project which use the LDAP library for PHP or you can use ldapsearch command in a shell.
-
-Configure LDAP is certainly the most difficult step.
 
 ## Usage
 If you have succeeded previous step you only have to go to the login page of your Mattermost server and click on the Gitlab Button. You will be redirected to a form asking for your LDAP credentials. If your credentials are valid, you will be asked to authorize Oauth to give your information to Mattermost. After authorizing you should be redirected on Mattermost connected with your account.
@@ -188,24 +175,66 @@ If you have succeeded previous step you only have to go to the login page of you
 Keep in mind this will create a new account on your Mattermost server with information from LDAP. The process will fail if an existing user already use your LDAP email. To bind a user to the LDAP authentication, sign in mattermost with this user account, go in account settings > security > sign-in method and "switch to using Gitlab SSO".
 
 
+## References
+
+#### project_url (Required)
+The URL or the path of the project archive (which contains the oauth directory)
+#### base_url (Required)
+The base URL of your Mattermost server. This is the URL provided in the site URL field in Mattermost admin panel. (ex : http://mattermost.company.com or http://mattermost.company.com:8065)		
+#### install_path (Optional)
+Directory where the Oauth server will be installed, by default /var/www/html/. The directory must be your httpd root directory. 	
+#### ldap_base (Required)
+The base directory name of your LDAP server. (ex : ou=People,o=Company)		
+#### ldap_filter (Optional)
+Additional filters to search in LDAP (used to get user informations). (ex : objectClass=person)
+#### ldap_uri (Required)
+Your LDAP hostname or LDAP IP, to connect the LDAP server.		
+#### ldap_port (Optional)
+Your LDAP port, to connect the LDAP server. By default : 389.			
+#### ldap_attribute (Required)
+The attribute used to identify user on your LDAP. Should be uid, email, cn or sAMAccountName.		
+#### db_user (Optional)
+Oauth user in the database. This user must have right on the oauth database to store oauth tokens. By default : oauth	
+#### db_pass (Optional)
+Oauth user password in the database. By default, oauth_secure-pass
+#### db_host (Optional)
+Hostname or IP address of the database. By default : localhost 		
+#### db_port
+The port listenning by database to connect. By default : 5432 (postgres) 		
+#### db_type (Optional)
+Database type to adapt script and configuration to your database server. Should be mysql or pqsql. By default : pgsql
+#### db_name (Optional)
+Database name for oauth server. By default	: oauth_db	
+#### client_id (Required)	
+The application ID shared with mattermost. This ID should be a random token. You can use openssl to generate this token (openssl rand -hex 32). If the ID is not filled, database will not be initialised and client will not be created.
+#### client_secret (Required)
+The application secret shared with mattermost. This secret should be a random token. You can use openssl to generate this token (openssl rand -hex 32). If the secret is not filled, database will not be initialised and client will not be created. Secret must be different of the client ID.
+#### redirect_uri (Optional)
+The callback address where oauth will send tokens to Mattermost. Normally it should be http://mattermost.company.com/signup/gitlab/complete (and this is the default value)
+#### grant_types (Optional)
+The type of authentification use by Mattermost. It should be authorization_code (default value)
+#### scope (Optional)
+The scope of authentification use by Mattermost. It should be api (default value)
+#### user_id (Optional)
+The username of the user who create the Mattermost client in Oauth. This field has no impact, and could be used as a commentary field. By default this field is empty.
+#### timezone (Optional)
+The date.timezone parameter for php.ini. This parameter will change the php.ini. This parameter must be set to avoid E.Notice raise by strtotime() (in Pdo.php). Note that if date.timezone is not defined, Mattermost will return a bad token request error. By default Europe/Paris (Because I love my country :D)
+#### ldap_bind_dn (Optional)
+The LDAP Directory Name of an service account to allow LDAP search. This ption is required if your LDAP is restrictive, else by default is an empty string (""). (ex : cn=mattermost_ldap,dc=Example,dc=com)
+#### ldap_bind_pass (Optional)
+The password associated to the service account to allow LDAP search. This ption is required if your LDAP you provide an bind user, else by default is an empty string ("").	
+
+
 ## Limitation
-This module has been tested on Centos 7, Fedora and Ubuntu with PostgreSQL and Mattermost Community Edition version 4.1 and 4.9.
+This module has been tested on Centos 7 with PostgreSQL.
 
 Others operating systems has not been tested yet but should work fine. 
 
 MySQL has not really been tested so it is possible there is some bugs with.
 
-
-## To do list
- * Gathering LDAP config
- * Add CSS to make a beautiful interface for Oauth server
- * Create an associated Puppet module
- * Change Gitlab button
- * Security audit
-
 ## Thanks
 
-I wish to thank my company and my colleagues for their help and support. Also, I thank Brent Shaffer for his Oauth-server-php project and its documentation.
+I wish to thank my company and my colleagues for their help and support. Also, I thank ligger1978 for his Mattermost Puppet module which inspires me a lot.
 
 
 ## Known issues
@@ -213,18 +242,23 @@ I wish to thank my company and my colleagues for their help and support. Also, I
  Try to restart httpd service. If this persists verify your LDAP configuration or your credentials.
 
  * PHP date timezone error
- Edit php.ini to set up date.timezone option and restart httpd service, or use the date_default_timezone_set() function in config_db.php
+ Edit php.ini to set up date.timezone option and restart httpd service.
 
  * Token request failed
  Try to add a new rule in your firewall (or use iptables -F on both Mattermost server and Oauth server)
 
  * .htaccess does not work
- Add following lines to your httpd.conf and restart httpd service.
- ```
- <Directory "/var/www/html/oauth">
+ Add following lines to your php.ini and restart httpd service.
+ ```<Directory "/var/www/html/oauth">
     AllowOverride All
 </Directory>
  ```
+
+
+
+
+
+
 
 
 
